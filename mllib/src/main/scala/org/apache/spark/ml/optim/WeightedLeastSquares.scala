@@ -140,11 +140,11 @@ private[ml] class WeightedLeastSquares(
       summary.abBar.values
     }
     val aaBar = if (singular) {
-      val aaBarOld = summary.aaBar.values
+      val aaBarTemp = summary.aaBar.values
       (for { col <- 0 until summary.k
              row <- 0 to col
              if aVarRaw(col) != 0 & aVarRaw(row) != 0 } yield
-        aaBarOld(row + col * (col + 1) / 2)).toArray
+        aaBarTemp(row + col * (col + 1) / 2)).toArray
     } else {
       summary.aaBar.values
     }
