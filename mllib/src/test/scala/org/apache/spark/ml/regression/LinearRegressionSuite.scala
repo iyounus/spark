@@ -638,7 +638,7 @@ class LinearRegressionSuite
     }
   }
 
-  test("linear regression model with constant with constant features") {
+  test("linear regression model with constant features") {
     /*
       R code:
       for (intercept in c(TRUE, FALSE)) {

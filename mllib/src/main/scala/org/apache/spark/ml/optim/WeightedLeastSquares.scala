@@ -101,50 +101,54 @@ private[ml] class WeightedLeastSquares(
           "Consider setting fitIntercept=true.")
       }
     }
-
-  /**
-   * If more than of the features in the data are constant (i.e, data matrix has constant columns),
-   * then A^T.A becomes singular and Cholesky decomposition fails (because the normal equation
-   * does not have a solution).
-   * In order to find a solution, we need to drop constant columns from the data matrix. Or,
-   * we can drop corresponding column and row from A^T.A matrix.
-   * Once we drop rows/columns from A^T.A matrix, the Cholesky decomposition will produce
-   * correct coefficients. But, for the final result, we need to add zeros to the list of
-   * coefficients corresponding to the constant features.
+    /*
+      If more than of the features in the data are constant (i.e, data matrix has constant columns),
+      then A^T.A is no longer positive definite and Cholesky decomposition fails (because the
+      normal equation does not have a solution).
+      In order to find a solution, we need to drop constant columns from the data matrix. Or,
+      we can drop corresponding column and row from A^T.A matrix.
+      Once we drop rows/columns from A^T.A matrix, the Cholesky decomposition will produce
+      correct coefficients. But, for the final result, we need to add zeros to the list of
+      coefficients corresponding to the constant features.
    */
-    // this will keep track of constant features because those will have zero variance.
-    val nzVarIndex = summary.aVar.values.zipWithIndex.filter( _._1 != 0 ).map(_._2)
+    val aVarRaw = summary.aVar.values
+    // this will keep track of features to keep in the model, and remove
+    // features with zero variance.
+    val nzVarIndex = aVarRaw.zipWithIndex.filter( _._1 != 0 ).map( _._2 )
     val nz = nzVarIndex.length
-    // if there are features with zero variance, then ATA is singular and we need to
+    // if there are features with zero variance, then ATA is not positive definite, and we need to
     // keep track of that.
     val singular = summary.k > nz
     val k = if (fitIntercept) nz + 1 else nz
     val triK = nz * (nz + 1) / 2
 
+    val aVar = if (singular) {
+      for (i <- nzVarIndex) yield {aVarRaw(i)}
+    } else {
+      aVarRaw
+    }
     val aBar = if (singular) {
-      for (i <- nzVarIndex) yield {summary.aBar(i)}
+      val aBarTemp = summary.aBar.values
+      for (i <- nzVarIndex) yield {aBarTemp(i)}
     } else {
       summary.aBar.values
     }
-    val aVar = if (singular) {
-      for (i <- nzVarIndex) yield {summary.aVar(i)}
-    } else {
-      summary.aVar.values
-    }
     val abBar = if (singular) {
-      for (i <- nzVarIndex) yield {summary.abBar(i)}
+      val abBarTemp = summary.abBar.values
+      for (i <- nzVarIndex) yield {abBarTemp(i)}
     } else {
       summary.abBar.values
     }
     val aaBar = if (singular) {
-      (for { col <- 0 until summary.k; row <- 0 to col
-        if !(summary.aVar(col) == 0 || summary.aVar(row) == 0) } yield
-        summary.aaBar(row + col*(col + 1)/2)).toArray
+      val aaBarOld = summary.aaBar.values
+      (for { col <- 0 until summary.k
+             row <- 0 to col
+             if aVarRaw(col) != 0 & aVarRaw(row) != 0 } yield
+        aaBarOld(row + col * (col + 1) / 2)).toArray
     } else {
       summary.aaBar.values
     }
 
-    // add regularization to diagonals
     var i = 0
     var j = 2
     while (i < triK) {
